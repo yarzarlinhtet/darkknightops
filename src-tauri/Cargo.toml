@@ -1,0 +1,19 @@
+[package]
+name = "remotedock"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+uuid = { version = "1", features = ["v4"] }
+ts-rs = { version = "10", features = ["serde-compat"] }
+
+[dev-dependencies]
+tauri = { version = "2", features = ["test"] }
+serde_json = "1"
+tempfile = "3"
