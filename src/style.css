@@ -1,0 +1,132 @@
+@import 'tailwindcss';
+@custom-variant dark (&:is(.dark *));
+:root {
+  color-scheme: light;
+  --background: #f7f8fb;
+  --foreground: #172033;
+  --card: #ffffff;
+  --muted: #edf0f5;
+  --muted-foreground: #626e82;
+  --border: #dce2ec;
+  --input: #ccd5e3;
+  --primary: #315edb;
+  --primary-foreground: #ffffff;
+  --accent: #e9eefc;
+  --destructive: #bc2635;
+  --ring: #567eec;
+}
+.dark {
+  color-scheme: dark;
+  --background: #0e131d;
+  --foreground: #e9edf6;
+  --card: #161d2a;
+  --muted: #1d2636;
+  --muted-foreground: #a0aec4;
+  --border: #2a3446;
+  --input: #3a4861;
+  --primary: #8daaff;
+  --primary-foreground: #10182c;
+  --accent: #233251;
+  --destructive: #fb8992;
+  --ring: #8daaff;
+}
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-destructive: var(--destructive);
+  --color-ring: var(--ring);
+}
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply m-0 bg-background text-foreground antialiased;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  button,
+  select {
+    cursor: pointer;
+  }
+  h1 {
+    @apply text-3xl font-semibold tracking-tight md:text-4xl;
+  }
+  h2 {
+    @apply text-lg font-semibold;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+}
+@layer components {
+  .sidebar {
+    @apply sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r bg-card p-4;
+  }
+  .sidebar.collapsed {
+    @apply w-20;
+  }
+  .sidebar.collapsed .nav-label {
+    @apply hidden;
+  }
+  .brand {
+    @apply mb-12 flex items-center gap-3 px-3 pt-3 text-lg font-semibold;
+  }
+  .nav-item {
+    @apply flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground;
+  }
+  .nav-item.active {
+    @apply bg-accent font-medium text-primary;
+  }
+  .page-heading {
+    @apply mb-8 flex flex-wrap items-center justify-between gap-5;
+  }
+  .eyebrow {
+    @apply mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground;
+  }
+  .panel {
+    @apply rounded-xl border bg-card p-6 shadow-sm;
+  }
+  .notice {
+    @apply mb-6 rounded-lg border bg-muted px-4 py-3 text-sm text-muted-foreground;
+  }
+  .empty-state {
+    @apply flex min-h-72 flex-col items-center justify-center gap-4 text-center;
+  }
+  .empty-state p {
+    @apply max-w-md text-sm text-muted-foreground;
+  }
+  .status-badge {
+    @apply inline-flex shrink-0 rounded-full border bg-muted px-3 py-1 text-xs text-muted-foreground;
+  }
+  .skip-link {
+    @apply fixed -top-20 left-4 z-[100] rounded bg-primary px-4 py-2 text-primary-foreground focus:top-4;
+  }
+}
+@media (max-width: 767px) {
+  .sidebar {
+    width: 4.5rem;
+    padding: 0.5rem;
+  }
+  .sidebar .nav-label {
+    display: none;
+  }
+  .sidebar .brand {
+    padding-left: 0.7rem;
+  }
+  .status-badge {
+    white-space: normal;
+    flex-shrink: 1;
+  }
+}
+/* Keep every navigation destination reachable in short desktop windows. */
+.sidebar {
+  overflow-y: auto;
+}
