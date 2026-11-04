@@ -56,3 +56,7 @@ All new commands are listed in build.rs and granted solely to the local main win
 ## Reusable SSH keys (Milestone 2.5)
 
 The SSH key application service coordinates `KeyRepository`, `KeyFiles` and the existing `CredentialStore`. SQLite migration 004 adds reusable key records and restricted server references; the existing transport resolves assigned keys while retaining legacy paths as fallback. Key IDs own saved passphrases independently of server lifetime. Managed storage uses atomic no-clobber publication and a durable cleanup journal. See [SSH key storage and threat model](milestone-2.5-ssh-keys.md).
+
+## Milestone 3: approved remote provisioning
+
+The provisioning domain, application service, SQLite repository and closed SSH command vocabulary extend the existing layers. Server detail adds an explicit Provisioning tab; loading the tab never changes a server. Worker-owned sessions preserve the existing key/host-trust path while separating package lifetime from UI leases. Reviewed plans, detached systemd operations, cooperative cancellation and persisted recovery are described in [Milestone 3 provisioning](milestone-3-provisioning.md). Earlier milestone descriptions of read-only SSH describe that historical scope; privileged execution is now available only through the provisioning approval boundary.

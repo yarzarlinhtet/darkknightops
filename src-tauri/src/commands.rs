@@ -333,3 +333,100 @@ pub async fn get_server_ssh_key_id(
 ) -> Result<Option<String>, AppError> {
     run(state, move |s| keys(s)?.assigned(&id)).await
 }
+
+use crate::domain::provisioning::*;
+fn provisioning(
+    service: &ServerService,
+) -> Result<&Arc<crate::application::provisioning::ProvisioningService>, AppError> {
+    service
+        .provisioning
+        .as_ref()
+        .ok_or_else(|| AppError::new(ErrorCode::Internal, "Provisioning service unavailable."))
+}
+#[tauri::command]
+pub async fn get_provisioning_preflight(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    lease: String,
+) -> Result<Preflight, AppError> {
+    run(state, move |s| provisioning(s)?.preflight(&id, &lease)).await
+}
+#[tauri::command]
+pub async fn get_docker_service_status(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    lease: String,
+) -> Result<Preflight, AppError> {
+    run(state, move |s| provisioning(s)?.preflight(&id, &lease)).await
+}
+#[tauri::command]
+pub async fn generate_provisioning_plan(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    lease: String,
+    grant_access: bool,
+) -> Result<ProvisioningPlan, AppError> {
+    run(state, move |s| {
+        provisioning(s)?.plan(&id, &lease, grant_access)
+    })
+    .await
+}
+fn progress<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> crate::application::provisioning::Progress {
+    use tauri::Emitter;
+    Arc::new(move |run| {
+        let _ = app.emit("provisioning-progress", run);
+    })
+}
+#[tauri::command]
+pub async fn start_server_provisioning<R: tauri::Runtime>(
+    state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle<R>,
+    id: String,
+    lease: String,
+    plan_id: String,
+    confirmed: bool,
+) -> Result<ProvisioningRun, AppError> {
+    run(state, move |s| {
+        provisioning(s)?.start(id, lease, plan_id, confirmed, false, progress(app))
+    })
+    .await
+}
+#[tauri::command]
+pub async fn grant_docker_access<R: tauri::Runtime>(
+    state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle<R>,
+    id: String,
+    lease: String,
+    plan_id: String,
+    confirmed: bool,
+) -> Result<ProvisioningRun, AppError> {
+    run(state, move |s| {
+        provisioning(s)?.start(id, lease, plan_id, confirmed, true, progress(app))
+    })
+    .await
+}
+#[tauri::command]
+pub async fn get_provisioning_run(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    run_id: String,
+) -> Result<ProvisioningRun, AppError> {
+    run(state, move |s| provisioning(s)?.get(&id, &run_id)).await
+}
+#[tauri::command]
+pub async fn list_provisioning_runs(
+    state: tauri::State<'_, AppState>,
+    id: String,
+) -> Result<Vec<ProvisioningRun>, AppError> {
+    run(state, move |s| provisioning(s)?.list(&id)).await
+}
+#[tauri::command]
+pub async fn cancel_server_provisioning(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    run_id: String,
+) -> Result<(), AppError> {
+    run(state, move |s| provisioning(s)?.cancel(&id, &run_id)).await
+}

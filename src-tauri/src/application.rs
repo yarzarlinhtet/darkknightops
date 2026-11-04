@@ -1,5 +1,6 @@
 pub mod connection;
 pub mod keys;
+pub mod provisioning;
 use crate::domain::{validate_id, AppError, Server, ServerInput};
 use std::sync::Arc;
 
@@ -31,6 +32,7 @@ pub trait ServerRepository: Send + Sync {
 }
 
 pub struct ServerService {
+    pub provisioning: Option<Arc<provisioning::ProvisioningService>>,
     pub keys: Option<Arc<keys::KeyService>>,
     repository: Arc<dyn ServerRepository>,
     pub connections: Option<Arc<connection::ConnectionService>>,
@@ -39,6 +41,7 @@ impl ServerService {
     pub fn new(repository: Arc<dyn ServerRepository>) -> Self {
         Self {
             keys: None,
+            provisioning: None,
             repository,
             connections: None,
         }

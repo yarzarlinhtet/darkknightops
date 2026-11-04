@@ -1,6 +1,14 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "get_provisioning_preflight",
+            "generate_provisioning_plan",
+            "start_server_provisioning",
+            "get_provisioning_run",
+            "list_provisioning_runs",
+            "cancel_server_provisioning",
+            "get_docker_service_status",
+            "grant_docker_access",
             "list_ssh_keys",
             "get_ssh_key",
             "generate_ssh_key",

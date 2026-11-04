@@ -10,3 +10,5 @@ pub mod ssh_keys;
 pub mod key_repository;
 
 pub mod key_files;
+
+pub mod provisioning;

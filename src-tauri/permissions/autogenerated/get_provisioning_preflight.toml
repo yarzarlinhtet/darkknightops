@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-provisioning-preflight"
+description = "Enables the get_provisioning_preflight command without any pre-configured scope."
+commands.allow = ["get_provisioning_preflight"]
+
+[[permission]]
+identifier = "deny-get-provisioning-preflight"
+description = "Denies the get_provisioning_preflight command without any pre-configured scope."
+commands.deny = ["get_provisioning_preflight"]

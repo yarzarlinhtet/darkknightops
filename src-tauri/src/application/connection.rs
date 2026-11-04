@@ -53,6 +53,16 @@ pub struct ConnectionService {
     observations: Mutex<HashMap<String, Observation>>,
     leases: Mutex<HashMap<String, String>>,
 }
+/// Worker-owned state survives detail-page closure; secrets remain zeroized.
+pub struct ProvisioningSession(Runtime);
+impl ProvisioningSession {
+    pub fn session(&mut self) -> Result<&mut dyn RemoteSession, AppError> {
+        match self.0.session.as_mut() {
+            Some(session) => Ok(session.as_mut()),
+            None => Err(ssh::error(ErrorCode::Unreachable)),
+        }
+    }
+}
 pub struct OperationGuard<'a> {
     service: &'a ConnectionService,
     id: String,
@@ -131,11 +141,18 @@ impl ConnectionService {
         Ok(())
     }
     pub fn expire_idle(&self) {
-        if let Ok(mut runtimes) = self.runtimes.lock() {
-            runtimes.retain(|_, runtime| {
+        // Match begin/open lock ordering. Long provisioning retains its detail
+        // lease, while the worker itself owns a separate SSH session.
+        if let (Ok(active), Ok(mut runtimes)) = (self.active.lock(), self.runtimes.lock()) {
+            runtimes.retain(|id, runtime| {
                 runtime
                     .try_lock()
-                    .map(|v| v.touched.elapsed() < Duration::from_secs(60))
+                    .map(|mut value| {
+                        if active.contains_key(id) {
+                            value.touched = Instant::now();
+                        }
+                        value.touched.elapsed() < Duration::from_secs(60)
+                    })
                     .unwrap_or(true)
             });
         }
@@ -214,6 +231,71 @@ impl ConnectionService {
         leases.remove(id);
         runtimes.remove(id);
         Ok(())
+    }
+    pub fn provisioning_session(
+        &self,
+        id: &str,
+        lease: &str,
+    ) -> Result<ProvisioningSession, AppError> {
+        let runtime = self.runtime(id, lease)?;
+        let runtime = lock(&runtime)?;
+        let mut worker = ProvisioningSession(Runtime {
+            server_id: id.into(),
+            lease: uuid::Uuid::new_v4().to_string(),
+            touched: Instant::now(),
+            session: None,
+            passphrase: runtime
+                .passphrase
+                .as_ref()
+                .map(|v| Zeroizing::new(v.to_string())),
+        });
+        drop(runtime);
+        self.reconnect_provisioning(id, &mut worker)?;
+        Ok(worker)
+    }
+    pub fn reconnect_provisioning(
+        &self,
+        id: &str,
+        worker: &mut ProvisioningSession,
+    ) -> Result<(), AppError> {
+        worker.0.session = None;
+        let server = self.repository.get(id)?;
+        let record = self.repository.connection(id)?;
+        if let Some(observation) = self.connect(
+            &server,
+            &record,
+            &mut worker.0,
+            &CancellationToken::default(),
+        )? {
+            return Err(ssh::error(if observation.previous_fingerprint.is_some() {
+                ErrorCode::HostKeyMismatch
+            } else {
+                ErrorCode::HostKeyUntrusted
+            }));
+        }
+        Ok(())
+    }
+    pub fn provisioning_identity(&self, id: &str) -> Result<String, AppError> {
+        use sha2::{Digest, Sha256};
+        let server = self.repository.get(id)?;
+        let record = self.repository.connection(id)?;
+        let key_id = self
+            .keys
+            .as_ref()
+            .map(|k| k.assigned(id))
+            .transpose()?
+            .flatten();
+        let data = serde_json::to_vec(&(
+            server.host,
+            server.port,
+            server.username,
+            record.revision,
+            record.trusted_key,
+            record.key_path,
+            key_id,
+        ))
+        .map_err(|_| ssh::error(ErrorCode::Internal))?;
+        Ok(format!("{:x}", Sha256::digest(data)))
     }
     pub fn metadata(&self, id: &str) -> Result<SshMetadata, AppError> {
         validate_id(id)?;

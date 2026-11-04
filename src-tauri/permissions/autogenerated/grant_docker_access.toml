@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-grant-docker-access"
+description = "Enables the grant_docker_access command without any pre-configured scope."
+commands.allow = ["grant_docker_access"]
+
+[[permission]]
+identifier = "deny-grant-docker-access"
+description = "Denies the grant_docker_access command without any pre-configured scope."
+commands.deny = ["grant_docker_access"]
