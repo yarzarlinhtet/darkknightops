@@ -38,6 +38,39 @@ function normalizeError(error: unknown): IpcError {
   );
 }
 type Commands = {
+  get_provisioning_preflight: {
+    args: { id: string; lease: string };
+    result: import('./bindings').Preflight;
+  };
+  get_docker_service_status: {
+    args: { id: string; lease: string };
+    result: import('./bindings').Preflight;
+  };
+  generate_provisioning_plan: {
+    args: { id: string; lease: string; grantAccess: boolean };
+    result: import('./bindings').ProvisioningPlan;
+  };
+  start_server_provisioning: {
+    args: { id: string; lease: string; planId: string; confirmed: boolean };
+    result: import('./bindings').ProvisioningRun;
+  };
+  grant_docker_access: {
+    args: { id: string; lease: string; planId: string; confirmed: boolean };
+    result: import('./bindings').ProvisioningRun;
+  };
+  list_provisioning_runs: {
+    args: { id: string };
+    result: import('./bindings').ProvisioningRun[];
+  };
+  get_provisioning_run: {
+    args: { id: string; runId: string };
+    result: import('./bindings').ProvisioningRun;
+  };
+  cancel_server_provisioning: {
+    args: { id: string; runId: string };
+    result: null;
+  };
+
   get_ssh_metadata: { args: { id: string }; result: SshMetadata };
   select_ssh_key: { args: { id: string | null }; result: string | null };
   configure_ssh_credential: {
@@ -203,4 +236,23 @@ export const keysApi = {
     call('assign_ssh_key_to_server', { id, keyId }),
   assigned: (id: string) => call('get_server_ssh_key_id', { id }),
   servers: (id: string) => call('list_servers_using_ssh_key', { id }),
+};
+
+export const provisioningApi = {
+  preflight: (id: string, lease: string) =>
+    call('get_provisioning_preflight', { id, lease }),
+  plan: (id: string, lease: string, grantAccess = false) =>
+    call('generate_provisioning_plan', { id, lease, grantAccess }),
+  start: (id: string, lease: string, planId: string, grantAccess: boolean) =>
+    call(grantAccess ? 'grant_docker_access' : 'start_server_provisioning', {
+      id,
+      lease,
+      planId,
+      confirmed: true,
+    }),
+  history: (id: string) => call('list_provisioning_runs', { id }),
+  get: (id: string, runId: string) =>
+    call('get_provisioning_run', { id, runId }),
+  cancel: (id: string, runId: string) =>
+    call('cancel_server_provisioning', { id, runId }),
 };

@@ -9,3 +9,5 @@ coverage/
 .ssh-test/
 
 .vite/
+
+.provisioning-test/

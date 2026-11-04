@@ -1,3 +1,4 @@
+import { ProvisioningPanel } from './provisioning-panel';
 import { sshMetadataKey } from './queries';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -227,6 +228,7 @@ function ServerDetail({ id }: { id: string }) {
   const [sessionError, setSessionError] = useState<string>();
   const [connected, setConnected] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<'overview' | 'provisioning'>('overview');
   const [clock, setClock] = useState(() => Date.now());
   const [visible, setVisible] = useState(!document.hidden);
   const { metricsInterval, setMetricsInterval } = usePreferences();
@@ -292,7 +294,13 @@ function ServerDetail({ id }: { id: string }) {
         signal.removeEventListener('abort', cancel);
       }
     },
-    enabled: !!lease && connected && visible && !busy && !refresh.isPending,
+    enabled:
+      !!lease &&
+      connected &&
+      visible &&
+      tab === 'overview' &&
+      !busy &&
+      !refresh.isPending,
     refetchInterval: (query) =>
       connected && visible && !busy && !refresh.isPending && !query.state.error
         ? metricsInterval * 1000
@@ -350,224 +358,246 @@ function ServerDetail({ id }: { id: string }) {
           {sessionError || metadata.error?.message}
         </p>
       )}
-      <section className="panel space-y-4">
-        <h2>Actions</h2>
-        <ConnectionControls
-          id={id}
-          lease={lease}
-          prepare={async () => {
-            const current = await sshApi.open(id);
-            if (!alive.current) {
-              await sshApi.close(id, current);
-              throw new Error('Detail session closed.');
-            }
-            leaseRef.current = current;
-            setLease(current);
-            return current;
-          }}
-          disabled={!lease || busy || refresh.isPending || metrics.isFetching}
-          onBusy={setBusy}
-          onResult={(result) => {
-            if (!alive.current) return;
-            setConnected(result.status === 'CONNECTED');
-            if (result.status === 'CONNECTED') refresh.mutate();
-          }}
-        />
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            disabled={
-              !connected || busy || refresh.isPending || metrics.isFetching
-            }
-            onClick={() => refresh.mutate()}
-          >
-            Refresh Server Information
-          </Button>
-          <Button
-            variant="outline"
-            disabled={
-              !connected || busy || refresh.isPending || metrics.isFetching
-            }
-            onClick={() => void metrics.refetch()}
-          >
-            Refresh Metrics
-          </Button>
-          {(busy || metrics.isFetching) && (
-            <Button
-              variant="ghost"
-              onClick={() => {
-                void sshApi
-                  .cancel(id)
-                  .catch((e: Error) => setSessionError(e.message));
-              }}
-            >
-              Cancel operation
-            </Button>
-          )}
-        </div>
-        <label className="flex items-center gap-3 text-sm">
-          Metrics refresh
-          <select
-            value={metricsInterval}
-            onChange={(e) => setMetricsInterval(Number(e.target.value))}
-            className="rounded border bg-background p-2"
-          >
-            {[5, 10, 30, 60].map((v) => (
-              <option key={v} value={v}>
-                {v} seconds
-              </option>
-            ))}
-          </select>
-        </label>
-        {(refresh.error || metrics.error) && (
-          <p role="alert" className="text-destructive">
-            {(refresh.error || metrics.error)?.message} Re-test the connection
-            to reconnect.
-          </p>
-        )}
-      </section>
-      <section className="panel space-y-3">
-        <h2>Overview</h2>
-        {metrics.isFetching && <p role="status">Refreshing metrics…</p>}
-        {live && (
-          <p className="text-xs text-muted-foreground">
-            {stale ? 'Stale data' : 'Last sampled'}:{' '}
-            {new Date(live.sampledAt).toLocaleString()}
-          </p>
-        )}
-        <dl className="grid gap-4 sm:grid-cols-3">
-          <div>
-            <dt>CPU</dt>
-            <dd>{percent(live?.cpuPercent)}</dd>
-          </div>
-          <div>
-            <dt>Memory</dt>
-            <dd>{percent(live?.memoryPercent)}</dd>
-          </div>
-          <div>
-            <dt>Root disk</dt>
-            <dd>{percent(live?.diskPercent)}</dd>
-          </div>
-          <div>
-            <dt>Hostname</dt>
-            <dd>{info?.hostname ?? 'Not discovered'}</dd>
-          </div>
-          <div>
-            <dt>Operating system</dt>
-            <dd>{info?.distribution ?? 'Not discovered'}</dd>
-          </div>
-          <div>
-            <dt>Architecture / kernel</dt>
-            <dd>
-              {info
-                ? `${info.architecture} / ${info.kernel}`
-                : 'Not discovered'}
-            </dd>
-          </div>
-          <div>
-            <dt>Uptime</dt>
-            <dd>
-              {live || info
-                ? `${Math.floor((live?.uptimeSeconds ?? info?.uptimeSeconds ?? 0) / 60)} minutes`
-                : 'Unavailable'}
-            </dd>
-          </div>
-          <div>
-            <dt>Logical CPUs</dt>
-            <dd>{info?.logicalCpus ?? 'Unavailable'}</dd>
-          </div>
-          <div>
-            <dt>Load average</dt>
-            <dd>{info?.loadAverage.join(' / ') ?? 'Unavailable'}</dd>
-          </div>
-          <div>
-            <dt>Memory available / total</dt>
-            <dd>
-              {info
-                ? `${bytes(info.memoryAvailableBytes)} / ${bytes(info.memoryTotalBytes)}`
-                : 'Unavailable'}
-            </dd>
-          </div>
-          <div>
-            <dt>Root disk available / total</dt>
-            <dd>
-              {info
-                ? `${bytes(info.diskAvailableBytes)} / ${bytes(info.diskTotalBytes)}`
-                : 'Unavailable'}
-            </dd>
-          </div>
-        </dl>
-        <p className="text-xs text-muted-foreground">
-          {info
-            ? `Snapshot: ${new Date(info.discoveredAt).toLocaleString()}. Provisioning platform support: ${info.provisioningSupported ? 'Ubuntu 24.04 supported in a future milestone' : 'not supported'}.`
-            : 'Test the connection, then refresh server information.'}
-        </p>
-      </section>
-      <section className="panel space-y-3">
-        <h2>Docker</h2>
-        <p>
-          CLI installed:{' '}
-          {docker ? (docker.cliInstalled ? 'Yes' : 'No') : 'Unknown'}
-        </p>
-        <p>Daemon access: {docker?.daemonAccess ?? 'Unknown'}</p>
-        <p>
-          Current sampled daemon availability:{' '}
-          {live
-            ? live.dockerAvailable
-              ? 'Available'
-              : 'Unavailable'
-            : 'Unknown'}
-        </p>
-        <p>
-          Client / Engine: {docker?.clientVersion ?? 'Unknown'} /{' '}
-          {docker?.serverVersion ?? 'Unknown'}
-        </p>
-        <p>
-          Compose v2:{' '}
-          {docker ? (docker.composeVersion ?? 'Missing') : 'Unknown'}
-        </p>
-        <p>
-          Access without sudo:{' '}
-          {docker ? (docker.accessWithoutSudo ? 'Yes' : 'No') : 'Unknown'}
-        </p>
-        {docker?.versionDetectionFailed && (
-          <p role="alert">Docker version detection failed.</p>
-        )}
-        <p className="text-xs text-muted-foreground">
-          {docker
-            ? `Snapshot: ${new Date(docker.discoveredAt).toLocaleString()}`
-            : 'Refresh server information to detect Docker.'}{' '}
-          Docker daemon access is root-equivalent.
-        </p>
-      </section>
-      <section className="panel space-y-4">
-        <h2>SSH</h2>
-        <p className="break-all text-sm">
-          Trusted key: {data?.trustedAlgorithm ?? ''}{' '}
-          {data?.trustedFingerprint ?? 'No trusted identity'}
-        </p>
-        <p className="text-sm">
-          Last connection test (historical):{' '}
-          {data?.lastTest
-            ? `${data.lastTest.status} · ${new Date(data.lastTest.testedAt).toLocaleString()}`
-            : 'Never'}
-        </p>
-        <p className="text-sm">
-          Last successful test:{' '}
-          {data?.lastSuccessAt
-            ? new Date(data.lastSuccessAt).toLocaleString()
-            : 'Never'}
-        </p>
-        {lease && (
-          <CredentialEditor
+      <nav className="flex gap-2" aria-label="Server detail tabs">
+        <Button
+          variant={tab === 'overview' ? 'default' : 'outline'}
+          onClick={() => setTab('overview')}
+        >
+          Overview
+        </Button>
+        <Button
+          variant={tab === 'provisioning' ? 'default' : 'outline'}
+          onClick={() => setTab('provisioning')}
+        >
+          Provisioning
+        </Button>
+      </nav>
+      <ProvisioningPanel
+        id={id}
+        lease={lease}
+        visible={tab === 'provisioning'}
+        onBusy={setBusy}
+      />
+      <div className="space-y-5" hidden={tab !== 'overview'}>
+        <section className="panel space-y-4">
+          <h2>Actions</h2>
+          <ConnectionControls
             id={id}
             lease={lease}
-            disabled={busy || refresh.isPending || metrics.isFetching}
+            prepare={async () => {
+              const current = await sshApi.open(id);
+              if (!alive.current) {
+                await sshApi.close(id, current);
+                throw new Error('Detail session closed.');
+              }
+              leaseRef.current = current;
+              setLease(current);
+              return current;
+            }}
+            disabled={!lease || busy || refresh.isPending || metrics.isFetching}
             onBusy={setBusy}
-            onChanged={() => setConnected(false)}
+            onResult={(result) => {
+              if (!alive.current) return;
+              setConnected(result.status === 'CONNECTED');
+              if (result.status === 'CONNECTED') refresh.mutate();
+            }}
           />
-        )}
-      </section>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              disabled={
+                !connected || busy || refresh.isPending || metrics.isFetching
+              }
+              onClick={() => refresh.mutate()}
+            >
+              Refresh Server Information
+            </Button>
+            <Button
+              variant="outline"
+              disabled={
+                !connected || busy || refresh.isPending || metrics.isFetching
+              }
+              onClick={() => void metrics.refetch()}
+            >
+              Refresh Metrics
+            </Button>
+            {(busy || metrics.isFetching) && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  void sshApi
+                    .cancel(id)
+                    .catch((e: Error) => setSessionError(e.message));
+                }}
+              >
+                Cancel operation
+              </Button>
+            )}
+          </div>
+          <label className="flex items-center gap-3 text-sm">
+            Metrics refresh
+            <select
+              value={metricsInterval}
+              onChange={(e) => setMetricsInterval(Number(e.target.value))}
+              className="rounded border bg-background p-2"
+            >
+              {[5, 10, 30, 60].map((v) => (
+                <option key={v} value={v}>
+                  {v} seconds
+                </option>
+              ))}
+            </select>
+          </label>
+          {(refresh.error || metrics.error) && (
+            <p role="alert" className="text-destructive">
+              {(refresh.error || metrics.error)?.message} Re-test the connection
+              to reconnect.
+            </p>
+          )}
+        </section>
+        <section className="panel space-y-3">
+          <h2>Overview</h2>
+          {metrics.isFetching && <p role="status">Refreshing metrics…</p>}
+          {live && (
+            <p className="text-xs text-muted-foreground">
+              {stale ? 'Stale data' : 'Last sampled'}:{' '}
+              {new Date(live.sampledAt).toLocaleString()}
+            </p>
+          )}
+          <dl className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <dt>CPU</dt>
+              <dd>{percent(live?.cpuPercent)}</dd>
+            </div>
+            <div>
+              <dt>Memory</dt>
+              <dd>{percent(live?.memoryPercent)}</dd>
+            </div>
+            <div>
+              <dt>Root disk</dt>
+              <dd>{percent(live?.diskPercent)}</dd>
+            </div>
+            <div>
+              <dt>Hostname</dt>
+              <dd>{info?.hostname ?? 'Not discovered'}</dd>
+            </div>
+            <div>
+              <dt>Operating system</dt>
+              <dd>{info?.distribution ?? 'Not discovered'}</dd>
+            </div>
+            <div>
+              <dt>Architecture / kernel</dt>
+              <dd>
+                {info
+                  ? `${info.architecture} / ${info.kernel}`
+                  : 'Not discovered'}
+              </dd>
+            </div>
+            <div>
+              <dt>Uptime</dt>
+              <dd>
+                {live || info
+                  ? `${Math.floor((live?.uptimeSeconds ?? info?.uptimeSeconds ?? 0) / 60)} minutes`
+                  : 'Unavailable'}
+              </dd>
+            </div>
+            <div>
+              <dt>Logical CPUs</dt>
+              <dd>{info?.logicalCpus ?? 'Unavailable'}</dd>
+            </div>
+            <div>
+              <dt>Load average</dt>
+              <dd>{info?.loadAverage.join(' / ') ?? 'Unavailable'}</dd>
+            </div>
+            <div>
+              <dt>Memory available / total</dt>
+              <dd>
+                {info
+                  ? `${bytes(info.memoryAvailableBytes)} / ${bytes(info.memoryTotalBytes)}`
+                  : 'Unavailable'}
+              </dd>
+            </div>
+            <div>
+              <dt>Root disk available / total</dt>
+              <dd>
+                {info
+                  ? `${bytes(info.diskAvailableBytes)} / ${bytes(info.diskTotalBytes)}`
+                  : 'Unavailable'}
+              </dd>
+            </div>
+          </dl>
+          <p className="text-xs text-muted-foreground">
+            {info
+              ? `Snapshot: ${new Date(info.discoveredAt).toLocaleString()}. Provisioning platform support: ${info.provisioningSupported ? 'Ubuntu 24.04 supported in a future milestone' : 'not supported'}.`
+              : 'Test the connection, then refresh server information.'}
+          </p>
+        </section>
+        <section className="panel space-y-3">
+          <h2>Docker</h2>
+          <p>
+            CLI installed:{' '}
+            {docker ? (docker.cliInstalled ? 'Yes' : 'No') : 'Unknown'}
+          </p>
+          <p>Daemon access: {docker?.daemonAccess ?? 'Unknown'}</p>
+          <p>
+            Current sampled daemon availability:{' '}
+            {live
+              ? live.dockerAvailable
+                ? 'Available'
+                : 'Unavailable'
+              : 'Unknown'}
+          </p>
+          <p>
+            Client / Engine: {docker?.clientVersion ?? 'Unknown'} /{' '}
+            {docker?.serverVersion ?? 'Unknown'}
+          </p>
+          <p>
+            Compose v2:{' '}
+            {docker ? (docker.composeVersion ?? 'Missing') : 'Unknown'}
+          </p>
+          <p>
+            Access without sudo:{' '}
+            {docker ? (docker.accessWithoutSudo ? 'Yes' : 'No') : 'Unknown'}
+          </p>
+          {docker?.versionDetectionFailed && (
+            <p role="alert">Docker version detection failed.</p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {docker
+              ? `Snapshot: ${new Date(docker.discoveredAt).toLocaleString()}`
+              : 'Refresh server information to detect Docker.'}{' '}
+            Docker daemon access is root-equivalent.
+          </p>
+        </section>
+        <section className="panel space-y-4">
+          <h2>SSH</h2>
+          <p className="break-all text-sm">
+            Trusted key: {data?.trustedAlgorithm ?? ''}{' '}
+            {data?.trustedFingerprint ?? 'No trusted identity'}
+          </p>
+          <p className="text-sm">
+            Last connection test (historical):{' '}
+            {data?.lastTest
+              ? `${data.lastTest.status} · ${new Date(data.lastTest.testedAt).toLocaleString()}`
+              : 'Never'}
+          </p>
+          <p className="text-sm">
+            Last successful test:{' '}
+            {data?.lastSuccessAt
+              ? new Date(data.lastSuccessAt).toLocaleString()
+              : 'Never'}
+          </p>
+          {lease && (
+            <CredentialEditor
+              id={id}
+              lease={lease}
+              disabled={busy || refresh.isPending || metrics.isFetching}
+              onBusy={setBusy}
+              onChanged={() => setConnected(false)}
+            />
+          )}
+        </section>
+      </div>
     </div>
   );
 }

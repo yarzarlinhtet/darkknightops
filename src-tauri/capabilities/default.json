@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Local inventory and read-only SSH discovery in the main window.",
+  "description": "Local inventory, verified SSH and explicitly approved provisioning in the main window.",
   "windows": ["main"],
   "permissions": [
     "allow-list-servers",
@@ -31,6 +31,16 @@
     "allow-export-ssh-public-key",
     "allow-assign-ssh-key-to-server",
     "allow-list-servers-using-ssh-key",
-    "allow-get-server-ssh-key-id"
+    "allow-get-server-ssh-key-id",
+    "allow-get-provisioning-preflight",
+    "allow-generate-provisioning-plan",
+    "allow-start-server-provisioning",
+    "allow-get-provisioning-run",
+    "allow-list-provisioning-runs",
+    "allow-cancel-server-provisioning",
+    "allow-get-docker-service-status",
+    "allow-grant-docker-access",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
   ]
 }

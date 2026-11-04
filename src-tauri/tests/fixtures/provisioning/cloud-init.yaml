@@ -1,0 +1,19 @@
+#cloud-config
+# Replace the public-key placeholder with a disposable test key before launch.
+users:
+  - default
+  - name: tester
+    shell: /bin/bash
+    groups: [sudo]
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    ssh_authorized_keys:
+      - REPLACE_WITH_DISPOSABLE_ED25519_PUBLIC_KEY
+packages:
+  - openssh-server
+  - curl
+  - ca-certificates
+write_files:
+  - path: /etc/remotedock-disposable-provisioning-fixture
+    permissions: '0444'
+    content: remotedock-milestone-3
+ssh_pwauth: false

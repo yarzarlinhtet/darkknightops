@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-provisioning-runs"
+description = "Enables the list_provisioning_runs command without any pre-configured scope."
+commands.allow = ["list_provisioning_runs"]
+
+[[permission]]
+identifier = "deny-list-provisioning-runs"
+description = "Denies the list_provisioning_runs command without any pre-configured scope."
+commands.deny = ["list_provisioning_runs"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-provisioning-run"
+description = "Enables the get_provisioning_run command without any pre-configured scope."
+commands.allow = ["get_provisioning_run"]
+
+[[permission]]
+identifier = "deny-get-provisioning-run"
+description = "Denies the get_provisioning_run command without any pre-configured scope."
+commands.deny = ["get_provisioning_run"]

@@ -1,5 +1,6 @@
 pub mod connection;
 pub mod keys;
+pub mod provisioning;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -26,6 +27,10 @@ pub enum ErrorCode {
     ObservationExpired,
     OutputLimit,
     DiscoveryFailed,
+    ProvisioningFailed,
+    ProvisioningUnknown,
+    PlanStale,
+    ProvisioningBlocked,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

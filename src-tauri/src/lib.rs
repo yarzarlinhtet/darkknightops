@@ -42,7 +42,12 @@ fn initialize(app: &tauri::App) -> Result<Arc<application::ServerService>, AppEr
         let Some(service) = weak.upgrade() else { break };
         service.expire_idle();
     });
+    let provisioning = Arc::new(application::provisioning::ProvisioningService::new(
+        connections.clone(),
+        repository.clone(),
+    )?);
     let mut service = application::ServerService::new(repository).with_connections(connections);
+    service.provisioning = Some(provisioning);
     service.keys = Some(keys);
     Ok(Arc::new(service))
 }
@@ -52,6 +57,14 @@ fn context<R: tauri::Runtime>() -> tauri::Context<R> {
 
 fn configure<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
     builder.invoke_handler(tauri::generate_handler![
+        commands::get_provisioning_preflight,
+        commands::generate_provisioning_plan,
+        commands::start_server_provisioning,
+        commands::get_provisioning_run,
+        commands::list_provisioning_runs,
+        commands::cancel_server_provisioning,
+        commands::get_docker_service_status,
+        commands::grant_docker_access,
         commands::list_ssh_keys,
         commands::get_ssh_key,
         commands::generate_ssh_key,
@@ -95,6 +108,15 @@ pub fn typescript_contracts() -> String {
     use ts_rs::TS;
     let declarations = vec![
         application::keys::SshKey::decl(),
+        domain::provisioning::StepStatus::decl(),
+        domain::provisioning::PlanStep::decl(),
+        domain::provisioning::ProvisioningFacts::decl(),
+        domain::provisioning::Preflight::decl(),
+        domain::provisioning::ProvisioningPlan::decl(),
+        domain::provisioning::RunStatus::decl(),
+        domain::provisioning::RunStep::decl(),
+        domain::provisioning::ProvisioningRun::decl(),
+        domain::provisioning::ProvisioningLog::decl(),
         domain::ErrorCode::decl(),
         domain::AppError::decl(),
         domain::Server::decl(),

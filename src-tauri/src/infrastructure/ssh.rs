@@ -71,6 +71,7 @@ impl From<AppError> for ConnectFailure {
 }
 #[derive(Clone, Copy, Debug)]
 pub enum RemoteCommand {
+    Provisioning(crate::infrastructure::provisioning::Command),
     Probe,
     OsRelease,
     Kernel,
@@ -88,8 +89,12 @@ pub enum RemoteCommand {
     DockerCompose,
 }
 impl RemoteCommand {
-    pub fn script(self) -> &'static str {
+    pub fn script(self) -> String {
+        if let Self::Provisioning(command) = self {
+            return command.script();
+        }
         match self {
+            Self::Provisioning(_) => unreachable!("handled above"),
             Self::Probe => "printf remotedock",
             Self::OsRelease => "cat /etc/os-release",
             Self::Kernel => "uname -r",
@@ -108,6 +113,7 @@ impl RemoteCommand {
             }
             Self::DockerCompose => "LC_ALL=C docker compose version --short",
         }
+        .into()
     }
 }
 #[derive(Clone, Debug)]
@@ -321,9 +327,14 @@ impl RemoteSession for Session {
         token: &CancellationToken,
         outer_deadline: Instant,
     ) -> Result<ExecuteOutput, AppError> {
-        let deadline = outer_deadline.min(Instant::now() + Duration::from_secs(10));
+        let limit = if matches!(command, RemoteCommand::Provisioning(_)) {
+            90
+        } else {
+            10
+        };
+        let deadline = outer_deadline.min(Instant::now() + Duration::from_secs(limit));
         let mut channel = retry(token, deadline, || self.ssh.channel_session())?;
-        retry(token, deadline, || channel.exec(command.script()))?;
+        retry(token, deadline, || channel.exec(&command.script()))?;
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();
         loop {

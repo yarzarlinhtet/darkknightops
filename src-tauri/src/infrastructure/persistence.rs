@@ -14,6 +14,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (2, include_str!("../../migrations/002_server_details.sql")),
     (3, include_str!("../../migrations/003_ssh_discovery.sql")),
     (4, include_str!("../../migrations/004_ssh_keys.sql")),
+    (5, include_str!("../../migrations/005_provisioning.sql")),
 ];
 fn database_error(_: rusqlite::Error) -> AppError {
     AppError::new(
@@ -229,7 +230,7 @@ mod tests {
         assert_eq!(
             db.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            4
+            5
         );
     }
     #[test]
