@@ -1,3 +1,4 @@
+import { SshKeysPage } from '@/features/keys/keys-page';
 import { useEffect } from 'react';
 import { HashRouter, NavLink, Route, Routes, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -16,11 +17,13 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePreferences, type Theme } from '@/store/preferences';
+import { ServerDetailPage } from '@/features/servers/server-detail';
 import { ServersPage } from '@/features/servers/servers-page';
 import { serversQuery } from '@/features/servers/queries';
 import { cn } from '@/lib/utils';
 const navigation = [
   { label: 'Dashboard', path: '/', icon: LayoutDashboard },
+  { label: 'SSH Keys', path: '/ssh-keys', icon: Server },
   { label: 'Servers', path: '/servers', icon: Server },
   { label: 'Projects', path: '/projects', icon: Folder },
   { label: 'Containers', path: '/containers', icon: Container },
@@ -44,7 +47,7 @@ function Dashboard() {
             A local workspace for your remote servers.
           </p>
         </div>
-        <span className="status-badge">Milestone 1 · Local inventory</span>
+        <span className="status-badge">Milestone 2 · SSH discovery</span>
       </div>
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="panel">
@@ -72,8 +75,9 @@ function Dashboard() {
           <p className="eyebrow">Built for your desktop</p>
           <h2 className="mt-3">Start with a server.</h2>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            Save your server details locally. SSH authentication, workload
-            management, and routing will arrive in later milestones.
+            Connect through SSH to discover server resources and Docker
+            capabilities. Workload management and routing arrive in later
+            milestones.
           </p>
           <div className="notice mt-6 mb-0">
             No cloud account or separate backend required.
@@ -223,7 +227,9 @@ export function App() {
           >
             <Routes>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/ssh-keys" element={<SshKeysPage />} />
               <Route path="/servers" element={<ServersPage />} />
+              <Route path="/servers/:id" element={<ServerDetailPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               {navigation.slice(2, 6).map((item) => (
                 <Route

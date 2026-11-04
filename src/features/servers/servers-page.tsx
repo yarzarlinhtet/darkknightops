@@ -1,4 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { sshMetadataKey } from './queries';
+import { Link } from 'react-router-dom';
+import { ConnectionControls } from './ssh-controls';
+import { KeySelector } from '@/features/keys/keys-page';
+import { keysApi, sshApi } from '@/lib/ipc';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2, Server as ServerIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -42,9 +47,50 @@ function ServerEditor({
       : { name: '', host: '', username: '', port: 22, notes: null },
   );
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [keyPath, setKeyPath] = useState<string | null>(null);
+  const passphraseInput = useRef<HTMLInputElement>(null);
+  const assignedKey = useQuery({
+    queryKey: ['server-key', server?.id],
+    queryFn: () => keysApi.assigned(server!.id),
+    enabled: !!server,
+  });
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [savePassphrase, setSavePassphrase] = useState(false);
+  const [createdId, setCreatedId] = useState<string>();
+  const selectKey = useMutation({
+    mutationFn: () => sshApi.selectKey(server?.id),
+    onSuccess: (path) => {
+      if (path) setKeyPath(path);
+    },
+  });
   const mutation = useMutation({
-    mutationFn: (value: ServerInput) =>
-      server ? serversApi.update(server.id, value) : serversApi.create(value),
+    gcTime: 0,
+    mutationFn: async (variables: { value: ServerInput }) => {
+      let secret = passphraseInput.current?.value ?? '';
+      if (passphraseInput.current) passphraseInput.current.value = '';
+      try {
+        const id = server?.id ?? createdId;
+        const saved = id
+          ? selectedKey
+            ? await serversApi.update(id, variables.value, selectedKey)
+            : await serversApi.update(id, variables.value)
+          : selectedKey
+            ? await serversApi.create(variables.value, selectedKey)
+            : await serversApi.create(variables.value);
+        setCreatedId(saved.id);
+        await client.invalidateQueries({ queryKey: serversQuery.queryKey });
+        if (keyPath)
+          await sshApi.configure(
+            saved.id,
+            keyPath,
+            savePassphrase ? secret : null,
+            savePassphrase,
+          );
+        return saved;
+      } finally {
+        secret = '';
+      }
+    },
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: serversQuery.queryKey });
       onSaved();
@@ -61,7 +107,7 @@ function ServerEditor({
     setErrors(issues);
     if (Object.keys(issues).length) return;
     onPending(true);
-    mutation.mutate(input);
+    mutation.mutate({ value: input });
   };
   return (
     <form onSubmit={submit} noValidate className="mt-6 space-y-4">
@@ -107,6 +153,67 @@ function ServerEditor({
             )}
           </div>
         ))}
+        <div className="space-y-3">
+          <label className="block text-sm">
+            Authentication method
+            <select
+              className="mt-1 w-full rounded-md border bg-background p-2"
+              value="private-key"
+              disabled
+            >
+              <option value="private-key">SSH private key</option>
+            </select>
+          </label>
+          <KeySelector
+            value={selectedKey ?? assignedKey.data ?? null}
+            onChange={setSelectedKey}
+            disabled={mutation.isPending}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={selectKey.isPending || !!selectedKey}
+            onClick={() => selectKey.mutate()}
+          >
+            Select SSH private-key file
+          </Button>
+          <p className="break-all text-xs text-muted-foreground">
+            {keyPath ??
+              (server
+                ? 'Keep existing SSH credential; manage it in server details.'
+                : 'Optional now; configure in server details before connecting.')}
+          </p>
+          {keyPath && (
+            <>
+              <label className="block text-sm" htmlFor="editor-passphrase">
+                Private-key passphrase
+              </label>
+              <Input
+                id="editor-passphrase"
+                type="password"
+                autoComplete="off"
+                ref={passphraseInput}
+              />
+              <label className="flex gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={savePassphrase}
+                  onChange={(e) => setSavePassphrase(e.target.checked)}
+                />
+                Save passphrase in macOS Keychain
+              </label>
+              <p className="text-xs text-muted-foreground">
+                If you do not save the passphrase, enter it in server details
+                when connecting.
+              </p>
+            </>
+          )}
+          {selectKey.error && (
+            <p role="alert" className="text-destructive">
+              {selectKey.error.message}
+            </p>
+          )}
+        </div>
         <div>
           <label htmlFor="notes" className="mb-1.5 block text-sm font-medium">
             Notes (optional)
@@ -131,6 +238,9 @@ function ServerEditor({
       </fieldset>
       {mutation.error && (
         <p role="alert" className="text-sm text-destructive">
+          {createdId && !server
+            ? 'Server metadata saved. Complete SSH setup or open its details. '
+            : ''}
           {mutation.error.message}
         </p>
       )}
@@ -146,11 +256,41 @@ function ServerEditor({
     </form>
   );
 }
+function ServerConnectionSummary({
+  id,
+  onBusy,
+}: {
+  id: string;
+  onBusy: (busy: boolean) => void;
+}) {
+  const query = useQuery({
+    queryKey: sshMetadataKey(id),
+    queryFn: () => sshApi.metadata(id),
+    retry: false,
+  });
+  return (
+    <div className="mt-3 space-y-2 text-xs text-muted-foreground">
+      <p>
+        Last result: {query.data?.lastTest?.status ?? 'Never tested'} · Docker:{' '}
+        {query.data?.docker?.daemonAccess ?? 'Unknown'}
+      </p>
+      <p>
+        Last checked:{' '}
+        {query.data?.lastTest
+          ? new Date(query.data.lastTest.testedAt).toLocaleString()
+          : 'Never'}
+      </p>
+      {query.error && <p role="alert">{query.error.message}</p>}
+      <ConnectionControls id={id} onBusy={onBusy} />
+    </div>
+  );
+}
 export function ServersPage() {
   const query = useQuery(serversQuery);
   const client = useQueryClient();
   const [editor, setEditor] = useState<{ server?: Server } | null>(null);
   const [pending, setPending] = useState(false);
+  const [busyServers, setBusyServers] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState<Server | null>(null);
   const remove = useMutation({
     mutationFn: serversApi.delete,
@@ -178,8 +318,8 @@ export function ServersPage() {
         </Button>
       </div>
       <div className="notice">
-        Metadata only · SSH connections and connection testing are not available
-        in Milestone 1.
+        SSH discovery is read-only. Open server details to configure a private
+        key and verify the host identity.
       </div>
       {query.isPending && <p role="status">Loading local servers…</p>}
       {query.error && (
@@ -209,7 +349,7 @@ export function ServersPage() {
                   {server.username}@{server.host}:{server.port}
                 </p>
               </div>
-              <span className="status-badge">Connection unknown</span>
+              <span className="status-badge">Live status unknown</span>
             </div>
             {server.notes && (
               <p className="mt-4 whitespace-pre-wrap break-words text-sm text-muted-foreground">
@@ -219,10 +359,25 @@ export function ServersPage() {
             <p className="mt-4 text-xs text-muted-foreground">
               Updated {new Date(server.updatedAt).toLocaleString()}
             </p>
-            <div className="mt-4 flex gap-2">
+            <ServerConnectionSummary
+              id={server.id}
+              onBusy={(busy) =>
+                setBusyServers((current) => {
+                  const next = new Set(current);
+                  if (busy) next.add(server.id);
+                  else next.delete(server.id);
+                  return next;
+                })
+              }
+            />
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button asChild size="sm" variant="outline">
+                <Link to={`/servers/${server.id}`}>Open details / SSH</Link>
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
+                disabled={busyServers.has(server.id)}
                 aria-label={`Edit ${server.name}`}
                 onClick={() => setEditor({ server })}
               >
@@ -232,6 +387,7 @@ export function ServersPage() {
               <Button
                 size="sm"
                 variant="ghost"
+                disabled={busyServers.has(server.id)}
                 aria-label={`Delete ${server.name}`}
                 onClick={() => {
                   remove.reset();
@@ -264,8 +420,8 @@ export function ServersPage() {
               {editor.server ? 'Edit server' : 'Add server'}
             </DialogTitle>
             <DialogDescription className="mt-2 text-sm text-muted-foreground">
-              Save local metadata. No SSH connection will be made. Do not enter
-              credentials or secrets in notes.
+              Save server details, then open the server to configure its SSH
+              key. Do not enter secrets in notes.
             </DialogDescription>
             <ServerEditor
               server={editor.server}

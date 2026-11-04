@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-close-server-session"
+description = "Enables the close_server_session command without any pre-configured scope."
+commands.allow = ["close_server_session"]
+
+[[permission]]
+identifier = "deny-close-server-session"
+description = "Denies the close_server_session command without any pre-configured scope."
+commands.deny = ["close_server_session"]

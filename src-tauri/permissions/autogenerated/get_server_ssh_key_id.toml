@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-server-ssh-key-id"
+description = "Enables the get_server_ssh_key_id command without any pre-configured scope."
+commands.allow = ["get_server_ssh_key_id"]
+
+[[permission]]
+identifier = "deny-get-server-ssh-key-id"
+description = "Denies the get_server_ssh_key_id command without any pre-configured scope."
+commands.deny = ["get_server_ssh_key_id"]

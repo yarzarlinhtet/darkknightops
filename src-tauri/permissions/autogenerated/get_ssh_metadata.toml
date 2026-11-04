@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-ssh-metadata"
+description = "Enables the get_ssh_metadata command without any pre-configured scope."
+commands.allow = ["get_ssh_metadata"]
+
+[[permission]]
+identifier = "deny-get-ssh-metadata"
+description = "Denies the get_ssh_metadata command without any pre-configured scope."
+commands.deny = ["get_ssh_metadata"]

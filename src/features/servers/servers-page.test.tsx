@@ -1,11 +1,21 @@
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, expect, test, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ServersPage } from './servers-page';
-import { serversApi, IpcError, type Server } from '@/lib/ipc';
+import { keysApi, sshApi, serversApi, IpcError, type Server } from '@/lib/ipc';
 vi.mock('@/lib/ipc', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/ipc')>()),
+  sshApi: {
+    metadata: vi.fn().mockResolvedValue({ lastTest: null, docker: null }),
+    test: vi.fn(),
+  },
+  keysApi: {
+    list: vi.fn().mockResolvedValue([]),
+    assigned: vi.fn().mockResolvedValue(null),
+    assign: vi.fn().mockResolvedValue(null),
+  },
   serversApi: {
     list: vi.fn(),
     create: vi.fn(),
@@ -29,13 +39,21 @@ function renderPage() {
   });
   render(
     <QueryClientProvider client={client}>
-      <ServersPage />
+      <MemoryRouter>
+        <ServersPage />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
   return userEvent.setup();
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(keysApi.list).mockResolvedValue([]);
+  vi.mocked(keysApi.assigned).mockResolvedValue(null);
+  vi.mocked(sshApi.metadata).mockResolvedValue({
+    lastTest: null,
+    docker: null,
+  } as Awaited<ReturnType<typeof sshApi.metadata>>);
   vi.mocked(serversApi.list).mockResolvedValue([server]);
 });
 test('edit uses existing metadata, keeps failures visible, and refreshes after saving', async () => {

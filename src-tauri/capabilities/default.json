@@ -1,13 +1,36 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Only local server metadata commands in the main window.",
+  "description": "Local inventory and read-only SSH discovery in the main window.",
   "windows": ["main"],
   "permissions": [
     "allow-list-servers",
     "allow-get-server",
     "allow-create-server",
     "allow-update-server",
-    "allow-delete-server"
+    "allow-delete-server",
+    "allow-get-ssh-metadata",
+    "allow-select-ssh-key",
+    "allow-configure-ssh-credential",
+    "allow-unlock-ssh-key",
+    "allow-open-server-session",
+    "allow-close-server-session",
+    "allow-cancel-server-operation",
+    "allow-test-server-connection",
+    "allow-trust-server-host-key",
+    "allow-get-server-info",
+    "allow-get-docker-capabilities",
+    "allow-get-server-metrics",
+    "allow-list-ssh-keys",
+    "allow-get-ssh-key",
+    "allow-generate-ssh-key",
+    "allow-import-ssh-key",
+    "allow-rename-ssh-key",
+    "allow-delete-ssh-key",
+    "allow-get-ssh-public-key",
+    "allow-export-ssh-public-key",
+    "allow-assign-ssh-key-to-server",
+    "allow-list-servers-using-ssh-key",
+    "allow-get-server-ssh-key-id"
   ]
 }
