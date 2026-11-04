@@ -1,3 +1,5 @@
+pub mod connection;
+pub mod keys;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -10,6 +12,20 @@ pub enum ErrorCode {
     DatabaseError,
     MigrationFailed,
     Internal,
+    Busy,
+    Cancelled,
+    Timeout,
+    Unreachable,
+    AuthenticationFailed,
+    PassphraseRequired,
+    InvalidPrivateKey,
+    KeyFileUnavailable,
+    CredentialStoreUnavailable,
+    HostKeyUntrusted,
+    HostKeyMismatch,
+    ObservationExpired,
+    OutputLimit,
+    DiscoveryFailed,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

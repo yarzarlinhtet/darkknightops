@@ -2,7 +2,7 @@
 
 A macOS-first, local infrastructure-management desktop app built with Tauri 2, React, TypeScript, and Rust.
 
-Milestone 1 provides a desktop workspace and persistent local server inventory. It does not connect over SSH, provision servers, manage Docker, deploy applications, or configure routing/certificates. Those sections are clearly marked unavailable.
+Milestone 2 adds SSH private-key connections, explicit host-key trust, macOS Keychain passphrases, read-only Linux discovery, Docker capability detection, and resource polling on the server detail screen. Provisioning, workload changes, deployment, and routing/certificates remain unavailable.
 
 ## Prerequisites
 
@@ -46,8 +46,12 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 Server metadata lives in `remotedock.sqlite` under Tauri's application-data directory (normally `~/Library/Application Support/com.remotedock.desktop` on macOS). SQLite migrations run automatically and transactionally. The migration from the initial scaffold preserves saved records. Theme and sidebar preferences are stored in local webview storage.
 
-Server fields are display name, hostname/IP, SSH port, SSH username, optional notes, ID and UTC timestamps. Credentials are deliberately not collected. Do not store secrets in notes. Deleting a server requires confirmation and removes local metadata only.
+Server metadata and SSH key-file paths are local. Private-key contents and passphrases never enter SQLite. Saved passphrases use macOS Keychain; unsaved passphrases stay in Rust memory for the detail session and are cleared on close or idle expiry. Only OpenSSH-format private keys are accepted; encrypted Ed25519 and RSA keys are supported by the configured SSH/crypto libraries. Other OS credential stores are not configured and return an explicit unavailable error.
 
-Dashboard reports saved records, not live server health. All connection states remain unknown. The mock SSH transport is injectable for tests and is not registered with production commands.
+Add a server and optionally select a key, then open its details. Test the connection, independently verify and approve first-use host identity, and unlock encrypted keys when requested. A successful test automatically discovers system/Docker information. Metrics refresh every 10 seconds by default while the visible detail page is open; select 5/10/30/60 seconds there. Changed keys block authentication and require deliberate review/replacement.
 
-See [architecture](docs/architecture.md) for boundaries, migrations, IPC and security. The next proposed milestone is SSH key authentication, credential storage and explicit host-key trust; it is not implemented here.
+Connection history and discovered snapshots survive restart. Historical success never implies current reachability. Closing the detail page cancels operations and releases its SSH session. Browser preview has no SSH or persistence access.
+
+See [architecture](docs/architecture.md) and [Milestone 2 testing](docs/milestone-2-testing.md) for security boundaries, disposable SSH integration tests, and manual read-only VPS acceptance. Docker access is root-equivalent; no sudo, provisioning, or remote configuration writes occur in this milestone.
+
+SSH key generation and management is documented in [Milestone 2.5](docs/milestone-2.5-ssh-keys.md), including supported formats, local storage security, legacy compatibility and disposable authentication tests.

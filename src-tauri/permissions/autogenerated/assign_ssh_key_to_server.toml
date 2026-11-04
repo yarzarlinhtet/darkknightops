@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-assign-ssh-key-to-server"
+description = "Enables the assign_ssh_key_to_server command without any pre-configured scope."
+commands.allow = ["assign_ssh_key_to_server"]
+
+[[permission]]
+identifier = "deny-assign-ssh-key-to-server"
+description = "Denies the assign_ssh_key_to_server command without any pre-configured scope."
+commands.deny = ["assign_ssh_key_to_server"]

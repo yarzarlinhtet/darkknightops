@@ -4,3 +4,8 @@ src-tauri/target/
 src-tauri/gen/
 .DS_Store
 coverage/
+
+# Disposable SSH integration-test keys
+.ssh-test/
+
+.vite/

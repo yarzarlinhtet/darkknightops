@@ -1,7 +1,28 @@
+pub mod connection;
+pub mod keys;
 use crate::domain::{validate_id, AppError, Server, ServerInput};
 use std::sync::Arc;
 
 pub trait ServerRepository: Send + Sync {
+    fn connection(
+        &self,
+        _id: &str,
+    ) -> Result<crate::domain::connection::ConnectionRecord, AppError> {
+        Err(AppError::new(
+            crate::domain::ErrorCode::Internal,
+            "Connection repository unavailable.",
+        ))
+    }
+    fn save_connection(
+        &self,
+        _id: &str,
+        _record: &crate::domain::connection::ConnectionRecord,
+    ) -> Result<(), AppError> {
+        Err(AppError::new(
+            crate::domain::ErrorCode::Internal,
+            "Connection repository unavailable.",
+        ))
+    }
     fn list(&self) -> Result<Vec<Server>, AppError>;
     fn get(&self, id: &str) -> Result<Server, AppError>;
     fn create(&self, input: &ServerInput) -> Result<Server, AppError>;
@@ -10,11 +31,21 @@ pub trait ServerRepository: Send + Sync {
 }
 
 pub struct ServerService {
+    pub keys: Option<Arc<keys::KeyService>>,
     repository: Arc<dyn ServerRepository>,
+    pub connections: Option<Arc<connection::ConnectionService>>,
 }
 impl ServerService {
     pub fn new(repository: Arc<dyn ServerRepository>) -> Self {
-        Self { repository }
+        Self {
+            keys: None,
+            repository,
+            connections: None,
+        }
+    }
+    pub fn with_connections(mut self, connections: Arc<connection::ConnectionService>) -> Self {
+        self.connections = Some(connections);
+        self
     }
     pub fn list(&self) -> Result<Vec<Server>, AppError> {
         self.repository.list()
@@ -30,10 +61,53 @@ impl ServerService {
     pub fn update(&self, id: &str, input: &ServerInput) -> Result<Server, AppError> {
         validate_id(id)?;
         input.validate()?;
+        let _guard = self.connections.as_ref().map(|c| c.begin(id)).transpose()?;
+        let previous = self.repository.get(id)?;
+        if let Some(c) = &self.connections {
+            c.prepare_edit(
+                id,
+                previous.host != input.host || previous.port != input.port,
+            )?;
+        }
         self.repository.update(id, input)
+    }
+    pub fn save_with_key(
+        &self,
+        id: Option<&str>,
+        input: &ServerInput,
+        key: &str,
+    ) -> Result<Server, AppError> {
+        input.validate()?;
+        let keys = self.keys.as_ref().ok_or_else(|| {
+            AppError::new(
+                crate::domain::ErrorCode::Internal,
+                "Key service unavailable.",
+            )
+        })?;
+        keys.get(key)?;
+        let _guard = if let Some(id) = id {
+            validate_id(id)?;
+            self.connections.as_ref().map(|c| c.begin(id)).transpose()?
+        } else {
+            None
+        };
+        if let Some(id) = id {
+            let previous = self.repository.get(id)?;
+            if let Some(c) = &self.connections {
+                c.prepare_edit(
+                    id,
+                    previous.host != input.host || previous.port != input.port,
+                )?;
+            }
+        }
+        keys.repository.save_server(id, input, key)
     }
     pub fn delete(&self, id: &str) -> Result<(), AppError> {
         validate_id(id)?;
+        let _guard = self.connections.as_ref().map(|c| c.begin(id)).transpose()?;
+        if let Some(c) = &self.connections {
+            c.prepare_delete(id)?;
+        }
         self.repository.delete(id)
     }
 }

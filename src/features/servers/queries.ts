@@ -5,3 +5,5 @@ export const serversQuery = queryOptions({
   queryFn: serversApi.list,
   retry: false,
 });
+
+export const sshMetadataKey = (id: string) => ['ssh', id] as const;

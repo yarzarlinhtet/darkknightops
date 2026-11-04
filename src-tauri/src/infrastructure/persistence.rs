@@ -12,6 +12,8 @@ use std::{
 const MIGRATIONS: &[(i64, &str)] = &[
     (1, include_str!("../../migrations/001_servers.sql")),
     (2, include_str!("../../migrations/002_server_details.sql")),
+    (3, include_str!("../../migrations/003_ssh_discovery.sql")),
+    (4, include_str!("../../migrations/004_ssh_keys.sql")),
 ];
 fn database_error(_: rusqlite::Error) -> AppError {
     AppError::new(
@@ -43,7 +45,7 @@ fn migrate(db: &mut Connection, migrations: &[(i64, &str)]) -> Result<(), AppErr
     tx.commit().map_err(database_error)
 }
 pub struct SqliteServerRepository {
-    db: Mutex<Connection>,
+    pub(crate) db: Mutex<Connection>,
 }
 impl SqliteServerRepository {
     pub fn open(path: &Path) -> Result<Self, AppError> {
@@ -54,6 +56,8 @@ impl SqliteServerRepository {
             )
         })?;
         db.busy_timeout(Duration::from_secs(5))
+            .map_err(database_error)?;
+        db.pragma_update(None, "foreign_keys", true)
             .map_err(database_error)?;
         migrate(&mut db, MIGRATIONS)?;
         Ok(Self { db: Mutex::new(db) })
@@ -90,6 +94,45 @@ fn get(db: &Connection, id: &str) -> Result<Server, AppError> {
     .ok_or_else(AppError::not_found)
 }
 impl ServerRepository for SqliteServerRepository {
+    fn connection(
+        &self,
+        id: &str,
+    ) -> Result<crate::domain::connection::ConnectionRecord, AppError> {
+        let db = self.connection()?;
+        get(&db, id)?;
+        let value: Option<String> = db
+            .query_row(
+                "SELECT record_json FROM server_connections WHERE server_id=?1",
+                [id],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(database_error)?;
+        value
+            .map(|v| {
+                serde_json::from_str(&v).map_err(|_| {
+                    AppError::new(
+                        ErrorCode::DatabaseError,
+                        "Invalid saved connection metadata.",
+                    )
+                })
+            })
+            .transpose()
+            .map(|v| v.unwrap_or_default())
+    }
+    fn save_connection(
+        &self,
+        id: &str,
+        record: &crate::domain::connection::ConnectionRecord,
+    ) -> Result<(), AppError> {
+        let db = self.connection()?;
+        get(&db, id)?;
+        let json = serde_json::to_string(record).map_err(|_| {
+            AppError::new(ErrorCode::Internal, "Cannot encode connection metadata.")
+        })?;
+        db.execute("INSERT INTO server_connections(server_id,record_json) VALUES(?1,?2) ON CONFLICT(server_id) DO UPDATE SET record_json=excluded.record_json", params![id,json]).map_err(database_error)?;
+        Ok(())
+    }
     fn list(&self) -> Result<Vec<Server>, AppError> {
         let db = self.connection()?;
         let mut stmt = db.prepare("SELECT id,name,host,port,username,notes,created_at,updated_at FROM servers ORDER BY name COLLATE NOCASE,id").map_err(database_error)?;
@@ -126,6 +169,10 @@ impl ServerRepository for SqliteServerRepository {
         }
         Ok(())
     }
+}
+
+pub(crate) fn key_database_error() -> AppError {
+    database_error(rusqlite::Error::InvalidQuery)
 }
 
 #[cfg(test)]
@@ -182,7 +229,7 @@ mod tests {
         assert_eq!(
             db.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            2
+            4
         );
     }
     #[test]
@@ -203,6 +250,52 @@ mod tests {
         assert_eq!(
             migrate(&mut db, MIGRATIONS).unwrap_err().code,
             ErrorCode::MigrationFailed
+        );
+    }
+    #[test]
+    fn v2_upgrade_preserves_metadata_and_connection_records_survive_restart() {
+        use crate::domain::connection::{ConnectionRecord, ConnectionStatus, ConnectionTestResult};
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("upgrade.sqlite");
+        {
+            let mut db = Connection::open(&path).unwrap();
+            migrate(&mut db, &MIGRATIONS[..2]).unwrap();
+            db.execute("INSERT INTO servers(id,name,host,port,username,notes,created_at,updated_at) VALUES('legacy','Saved','localhost',22,'tester','keep','created','updated')", []).unwrap();
+        }
+        let repo = SqliteServerRepository::open(&path).unwrap();
+        assert_eq!(repo.get("legacy").unwrap().notes.as_deref(), Some("keep"));
+        let record = ConnectionRecord {
+            key_path: Some("/tmp/public-path-only".into()),
+            credential_ref: Some("opaque-reference".into()),
+            trusted_key: Some(b"public host identity".to_vec()),
+            last_test: Some(ConnectionTestResult {
+                status: ConnectionStatus::Connected,
+                latency_ms: Some(12.0),
+                message: "Historical".into(),
+                error_code: None,
+                tested_at: "2026-01-01T00:00:00Z".into(),
+                observation: None,
+            }),
+            ..Default::default()
+        };
+        repo.save_connection("legacy", &record).unwrap();
+        drop(repo);
+        let repo = SqliteServerRepository::open(&path).unwrap();
+        let loaded = ServerRepository::connection(&repo, "legacy").unwrap();
+        assert_eq!(loaded.trusted_key, record.trusted_key);
+        assert_eq!(loaded.credential_ref, record.credential_ref);
+        assert_eq!(
+            loaded.last_test.unwrap().status,
+            ConnectionStatus::Connected
+        );
+        repo.delete("legacy").unwrap();
+        assert_eq!(
+            repo.connection()
+                .unwrap()
+                .query_row("SELECT COUNT(*) FROM server_connections", [], |r| r
+                    .get::<_, i64>(0))
+                .unwrap(),
+            0
         );
     }
     #[test]

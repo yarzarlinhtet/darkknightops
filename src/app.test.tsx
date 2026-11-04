@@ -5,6 +5,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App } from './app';
 import { usePreferences } from './store/preferences';
 vi.mock('@/lib/ipc', () => ({
+  keysApi: {
+    list: vi.fn().mockResolvedValue([]),
+    assigned: vi.fn().mockResolvedValue(null),
+    assign: vi.fn().mockResolvedValue(null),
+  },
   serversApi: { list: vi.fn().mockResolvedValue([]) },
 }));
 beforeEach(() => {

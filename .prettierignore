@@ -5,3 +5,6 @@ src-tauri/gen
 src/lib/bindings.ts
 AGENTS.md
 package-lock.json
+
+.vite/
+.ssh-test/
